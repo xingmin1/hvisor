@@ -104,6 +104,9 @@ loongson_uart = []
 loongson_3a5000 = []
 loongson_3a6000 = []
 
+################# UEFI ######################
+aarch64_uefi_support = []
+
 ############# x86_64 ###############
 graphics = []
 split_screen = []

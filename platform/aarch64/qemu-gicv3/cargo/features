@@ -1,6 +1,8 @@
 gicv3
 pl011
 arm_smmu
+sequential_output
 pci
 ecam_pcie
+aarch64_uefi_support
 virtio_pci
