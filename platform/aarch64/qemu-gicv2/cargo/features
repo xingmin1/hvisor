@@ -3,4 +3,3 @@ pl011
 arm_smmu
 pci
 ecam_pcie
-aarch64_uefi_support
