@@ -54,7 +54,7 @@ const ROOT_ZONE_UEFI_REGION_ID: usize = 0x3;
 
 pub const ROOT_ZONE_NAME: &str = "root-linux";
 pub const ROOT_ZONE_CMDLINE: &str =
-    "console=tty0 console=ttyS0 earlycon=efifb earlyprintk=serial nointremap no_timer_check efi=noruntime pci=pcie_scan_all,lastbus=1 root=/dev/vda rw init=/init\0";
+    "console=tty0 console=ttyS0 earlycon=efifb earlyprintk=serial nointremap no_timer_check efi=noruntime pci=pcie_scan_all,lastbus=1 maxcpus=2 nr_cpus=2 root=/dev/vda rw init=/init\0";
 //"console=ttyS0 earlyprintk=serial rdinit=/init nokaslr nointremap\0"; // noapic
 // video=vesafb
 // /lib/systemd/systemd
