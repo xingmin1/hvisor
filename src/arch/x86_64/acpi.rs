@@ -714,6 +714,15 @@ pub fn get_cpu_id(apic_id: usize) -> usize {
         .unwrap()
 }
 
+pub fn try_get_cpu_id(apic_id: usize) -> Option<usize> {
+    ROOT_ACPI
+        .get()
+        .unwrap()
+        .apic_id_to_cpu_id
+        .get(&apic_id)
+        .copied()
+}
+
 pub fn get_apic_id(cpu_id: usize) -> usize {
     *ROOT_ACPI
         .get()

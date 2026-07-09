@@ -15,22 +15,17 @@
 //  Solicey <lzoi_lth@163.com>
 
 use crate::{
-    arch::{
-        acpi::{get_apic_id, get_cpu_id},
-        cpu::this_cpu_id,
-        idt, ipi,
-        mmio::MMIoDevice,
-        zone::HvArchZoneConfig,
-    },
+    arch::{acpi::try_get_cpu_id, zone::HvArchZoneConfig},
+    cpu_data::this_zone,
     device::irqchip::pic::inject_vector,
     error::HvResult,
     memory::{GuestPhysAddr, MMIOAccess},
     platform::ROOT_ZONE_IOAPIC_BASE,
-    zone::{this_zone_id, Zone},
+    zone::{find_zone, this_zone_id, Zone},
 };
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
 use bit_field::BitField;
-use core::{ops::Range, u32};
+use core::u32;
 use spin::{Mutex, Once};
 use x2apic::ioapic::IoApic;
 use x86_64::instructions::port::Port;
@@ -152,9 +147,12 @@ impl VirtIoApic {
 
     fn get_irq_cpu(&self, irq: usize, zone_id: usize) -> Option<usize> {
         let ioapic = self.inner.get(zone_id).unwrap();
+        let zone = find_zone(zone_id)?;
         if let Some(entry) = ioapic.lock().rte.get(irq) {
-            let dest = get_cpu_id(entry.get_bits(56..=63) as usize);
-            return Some(dest);
+            let cpu_id = try_get_cpu_id(entry.get_bits(56..=63) as usize)?;
+            if zone.cpu_set().contains_cpu(cpu_id) {
+                return Some(cpu_id);
+            }
         }
         None
     }
@@ -164,7 +162,14 @@ impl VirtIoApic {
         let ioapic = self.inner.get(zone_id).unwrap();
         if let Some(entry) = ioapic.lock().rte.get(irq) {
             // TODO: physical & logical mode
-            let dest = get_cpu_id(entry.get_bits(56..=63) as usize);
+            let Some(dest) = try_get_cpu_id(entry.get_bits(56..=63) as usize) else {
+                warn!("drop IOAPIC irq {} with unknown destination", irq);
+                return Ok(());
+            };
+            if !this_zone().cpu_set().contains_cpu(dest) {
+                warn!("drop cross-zone IOAPIC irq {} to CPU {}", irq, dest);
+                return Ok(());
+            }
             let masked = entry.get_bit(16);
             let vector = entry.get_bits(0..=7) as u8;
             // info!("trigger hv: {:x} zone: {:x}", vector, zone_id);
@@ -221,13 +226,15 @@ pub fn init_virt_ioapic(max_zones: usize) {
 }
 
 pub fn ioapic_inject_irq(irq: u8, allow_repeat: bool) {
-    VIRT_IOAPIC.get().unwrap().trigger(irq as _, allow_repeat);
+    let _ = VIRT_IOAPIC.get().unwrap().trigger(irq as _, allow_repeat);
 }
 
 pub fn get_irq_cpu(irq: usize, zone_id: usize) -> usize {
-    VIRT_IOAPIC
-        .get()
-        .unwrap()
-        .get_irq_cpu(irq, zone_id)
-        .unwrap()
+    if let Some(cpu_id) = VIRT_IOAPIC.get().unwrap().get_irq_cpu(irq, zone_id) {
+        cpu_id
+    } else {
+        find_zone(zone_id)
+            .and_then(|zone| zone.cpu_set().first_cpu())
+            .unwrap_or(0)
+    }
 }

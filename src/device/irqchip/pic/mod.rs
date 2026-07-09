@@ -20,6 +20,7 @@ pub mod lapic;
 use crate::{
     arch::{acpi, cpu::this_cpu_id, idt, ipi, msr, pio, vmcs::Vmcs},
     consts::{MAX_CPU_NUM, MAX_ZONE_NUM},
+    cpu_data::this_cpu_data,
     device::iommu,
     zone::Zone,
 };
@@ -67,7 +68,8 @@ impl PendingVectors {
 
         if let Some(vector) = vectors.queue.front() {
             let allow_interrupt = Vmcs::allow_interrupt().unwrap() && vectors.has_eoi;
-            if vector.0 < 32 || allow_interrupt {
+            let lapic_enabled = this_cpu_data().arch_cpu.virt_lapic.is_enabled();
+            if vector.0 < 32 || (allow_interrupt && lapic_enabled) {
                 if vectors.queue.len() > 10 {
                     warn!("too many pending vectors!");
                 }

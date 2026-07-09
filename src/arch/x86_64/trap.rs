@@ -108,8 +108,16 @@ fn handle_irq(vector: u8) {
         }
         IdtVector::APIC_SPURIOUS_VECTOR | IdtVector::APIC_ERROR_VECTOR => {}
         _ => {
-            if vector >= 0x20 && this_cpu_data().vcpu_state.is_running() {
-                inject_vector(this_cpu_id(), vector, None, false);
+            if vector >= 0x20
+                && this_cpu_data().vcpu_state.is_running()
+                && this_cpu_data().arch_cpu.virt_lapic.is_enabled()
+            {
+                let virt_vector = if vector == IdtVector::APIC_TIMER_VECTOR {
+                    this_cpu_data().arch_cpu.virt_lapic.handle_timer_irq()
+                } else {
+                    vector
+                };
+                inject_vector(this_cpu_id(), virt_vector, None, false);
             }
         }
     }
@@ -152,6 +160,18 @@ fn handle_cpuid(arch_cpu: &mut ArchCpu) -> HvResult {
                 res.ecx = ecx.bits() as _;
 
                 res
+            }
+            CpuIdEax::TscCrystalClockInfo => {
+                if let Some(freq_mhz) = hpet::get_tsc_freq_mhz() {
+                    CpuIdResult {
+                        eax: 1,
+                        ebx: freq_mhz,
+                        ecx: 1_000_000,
+                        edx: 0,
+                    }
+                } else {
+                    cpuid!(regs.rax, regs.rcx)
+                }
             }
             CpuIdEax::ProcessorFrequencyInfo => {
                 if let Some(freq_mhz) = hpet::get_tsc_freq_mhz() {
@@ -317,11 +337,8 @@ fn handle_msr_read(arch_cpu: &mut ArchCpu) -> HvResult {
 
     if let Ok(msr) = Msr::try_from(rcx) {
         let res = if msr == IA32_APIC_BASE {
-            let mut apic_base = unsafe { IA32_APIC_BASE.read() };
-            // info!("APIC BASE: {:x}", apic_base);
-            apic_base |= 1 << 11 | 1 << 10; // enable xAPIC and x2APIC
-            Ok(apic_base)
-        } else if VirtLocalApic::msr_range().contains(&rcx) {
+            Ok(arch_cpu.virt_lapic.apic_base(this_cpu_data().boot_cpu))
+        } else if VirtLocalApic::msr_range().contains(&rcx) || msr == IA32_TSC_DEADLINE {
             arch_cpu.virt_lapic.rdmsr(msr)
         } else {
             hv_result_err!(ENOSYS)
@@ -349,7 +366,8 @@ fn handle_msr_write(arch_cpu: &mut ArchCpu) -> HvResult {
     debug!("VM exit: WRMSR({:#x}) <- {:#x}", rcx, value);
 
     let res = if msr == IA32_APIC_BASE {
-        Ok(()) // ignore
+        arch_cpu.virt_lapic.write_apic_base(value);
+        Ok(())
     } else if VirtLocalApic::msr_range().contains(&rcx) || msr == IA32_TSC_DEADLINE {
         arch_cpu.virt_lapic.wrmsr(msr, value)
     } else {

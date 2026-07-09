@@ -196,13 +196,25 @@ impl MsrBitmap {
 
         bitmap.set_read_intercept(IA32_APIC_BASE, true);
         bitmap.set_read_intercept(IA32_X2APIC_APICID, true);
+        bitmap.set_read_intercept(IA32_X2APIC_VERSION, true);
         bitmap.set_read_intercept(IA32_X2APIC_LDR, true);
+        bitmap.set_read_intercept(IA32_X2APIC_SIVR, true);
+        bitmap.set_read_intercept(IA32_X2APIC_ESR, true);
         bitmap.set_read_intercept(IA32_X2APIC_LVT_TIMER, true);
+        bitmap.set_read_intercept(IA32_X2APIC_INIT_COUNT, true);
+        bitmap.set_read_intercept(IA32_X2APIC_CUR_COUNT, true);
+        bitmap.set_read_intercept(IA32_X2APIC_DIV_CONF, true);
+        bitmap.set_read_intercept(IA32_TSC_DEADLINE, true);
 
         bitmap.set_write_intercept(IA32_APIC_BASE, true);
+        bitmap.set_write_intercept(IA32_TSC_DEADLINE, true);
         bitmap.set_write_intercept(IA32_X2APIC_EOI, true);
+        bitmap.set_write_intercept(IA32_X2APIC_ESR, true);
         bitmap.set_write_intercept(IA32_X2APIC_ICR, true);
+        bitmap.set_write_intercept(IA32_X2APIC_SIVR, true);
         bitmap.set_write_intercept(IA32_X2APIC_LVT_TIMER, true);
+        bitmap.set_write_intercept(IA32_X2APIC_INIT_COUNT, true);
+        bitmap.set_write_intercept(IA32_X2APIC_DIV_CONF, true);
 
         for addr in (IA32_X2APIC_ISR0 as u32)..(IA32_X2APIC_ISR7 as u32 + 1) {
             if let Ok(msr) = Msr::try_from(addr) {

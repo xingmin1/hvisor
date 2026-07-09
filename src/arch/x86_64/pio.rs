@@ -47,10 +47,15 @@ pub fn set_pio_bitmap(zone_id: usize) {
 
 pub fn get_pio_bitmap(zone_id: usize) -> &'static mut PortIoBitmap {
     unsafe {
-        PIO_BITMAP_MAP
+        let map = PIO_BITMAP_MAP
             .as_mut()
-            .expect("PIO_BITMAP_MAP is not initialized!")
-            .get_mut(&zone_id)
+            .expect("PIO_BITMAP_MAP is not initialized!");
+
+        if !map.contains_key(&zone_id) {
+            let _ = map.insert(zone_id, PortIoBitmap::new(zone_id));
+        }
+
+        map.get_mut(&zone_id)
             .expect("pio bitmap for this Zone does not exist!")
     }
 }

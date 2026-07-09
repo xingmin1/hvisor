@@ -222,7 +222,7 @@ impl ArchCpu {
     }
 
     pub fn idle(&mut self) -> ! {
-        unsafe { self.virt_lapic.phys_lapic.end_of_interrupt() };
+        self.virt_lapic.reset();
 
         assert!(this_cpu_id() == self.cpuid);
 
@@ -580,7 +580,10 @@ impl ArchCpu {
 
     fn vmexit_handler(&mut self) {
         crate::arch::trap::handle_vmexit(self).unwrap();
-        if this_cpu_data().vcpu_state.is_running() {
+        if crate::cpu_data::get_cpu_data(self.cpuid)
+            .vcpu_state
+            .is_running()
+        {
             check_pending_vectors(self.cpuid);
         }
     }

@@ -16,7 +16,7 @@
 
 use crate::{
     arch::{
-        acpi::{get_apic_id, get_cpu_id},
+        acpi::{get_apic_id, try_get_cpu_id},
         cpu::this_cpu_id,
         idt::IdtVector,
     },
@@ -88,15 +88,22 @@ pub fn send_ipi(value: u64) -> HvResult {
     let vector = value.get_bits(0..=7) as u8;
     let delivery_mode: u8 = value.get_bits(8..=10) as u8;
     let dest_shorthand = value.get_bits(18..=19) as u8;
-    let dest = get_cpu_id(value.get_bits(32..=39) as usize);
-    let cnt = value.get_bits(40..=63) as u32;
 
-    let mut cpu_set = this_zone().cpu_set();
+    let cpu_set = this_zone().cpu_set();
     let cpu_id = this_cpu_id();
     let mut dest_set = CpuSet::new(cpu_set.max_cpu_id, 0);
 
     match dest_shorthand {
         IpiDestShorthand::NO_SHORTHAND => {
+            let apic_id = value.get_bits(32..=63) as usize;
+            let Some(dest) = try_get_cpu_id(apic_id) else {
+                warn!("drop IPI to unknown APIC ID {:#x}", apic_id);
+                return Ok(());
+            };
+            if !cpu_set.contains_cpu(dest) {
+                warn!("drop cross-zone IPI to CPU {}", dest);
+                return Ok(());
+            }
             dest_set.set_bit(dest);
         }
         IpiDestShorthand::SELF => {
